@@ -11,6 +11,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { Vehicle } from '../src/vehicle/Vehicle';
 import { CAR } from '../src/vehicle/CarConfig';
+import { createSandbox, SANDBOX_ORIGIN } from '../src/world/Sandbox';
 import type { DriveInput } from '../src/core/Input';
 
 const DT = 1 / 60;
@@ -273,6 +274,58 @@ function testHandbrake(): void {
   console.log(`  → ${verdict}`);
 }
 
+/**
+ * Drives the test pad's articulation lane and checks the suspension actually
+ * articulates — that opposite wheels take independent loads rather than the
+ * whole car rocking as one lump. Also confirms the pad is solid and the car
+ * lands on it rather than through it.
+ */
+function testSandbox(): void {
+  const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+  world.timestep = DT;
+  const sandbox = createSandbox(RAPIER, world, new THREE.Scene());
+
+  // Start on the articulation lane (two lanes left of centre) rather than the
+  // default spawn, so the blocks are directly ahead.
+  const start = new THREE.Vector3(
+    SANDBOX_ORIGIN.x - 30,
+    SANDBOX_ORIGIN.y + 1.2,
+    sandbox.spawn.z,
+  );
+  const vehicle = new Vehicle(RAPIER, world, start);
+
+  step(world, vehicle, COAST, 2);
+  const restY = vehicle.position.y;
+  const landedOnPad = Math.abs(restY - SANDBOX_ORIGIN.y) < 1.5;
+
+  // Drive north over the staggered blocks.
+  const go: DriveInput = { throttle: 0.42, steer: 0, handbrake: false };
+  let maxSplitFront = 0;
+  let maxSplitRear = 0;
+  let anyAirborne = false;
+
+  for (let i = 0; i < 60 * 14; i++) {
+    vehicle.update(go, DT);
+    world.step();
+    const s = vehicle.suspension;
+    maxSplitFront = Math.max(maxSplitFront, Math.abs(s[0]!.compression - s[1]!.compression));
+    maxSplitRear = Math.max(maxSplitRear, Math.abs(s[2]!.compression - s[3]!.compression));
+    if (!s.every((w) => w.contact)) anyAirborne = true;
+  }
+
+  console.log('\n── Test pad ────────────────────────────────');
+  console.log(`  pad deck        ${landedOnPad ? `solid, car rests at ${restY.toFixed(2)} m` : `FAIL — car at ${restY.toFixed(1)} m`}`);
+  console.log(`  travelled       ${Math.abs(vehicle.position.z - start.z).toFixed(0)} m along the articulation lane`);
+  console.log(`  L/R split front ${(maxSplitFront * 100).toFixed(0)}% of travel`);
+  console.log(`  L/R split rear  ${(maxSplitRear * 100).toFixed(0)}% of travel`);
+  console.log(`  wheel lift      ${anyAirborne ? 'yes — wheels leave the ground' : 'none'}`);
+
+  const articulates = maxSplitFront > 0.15 || maxSplitRear > 0.15;
+  console.log(`  → ${landedOnPad && articulates
+    ? 'OK — suspension articulates independently'
+    : 'PROBLEM — pad not solid, or suspension moves as one'}`);
+}
+
 async function main(): Promise<void> {
   await RAPIER.init();
   console.log('Vehicle harness — Rapier raycast vehicle, no renderer');
@@ -282,6 +335,7 @@ async function main(): Promise<void> {
   testBraking();
   testCornering();
   testHandbrake();
+  testSandbox();
   console.log('');
 }
 

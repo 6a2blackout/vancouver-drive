@@ -136,6 +136,29 @@ export class Vehicle {
     return false;
   }
 
+  /**
+   * Per-wheel suspension state, ordered FL, FR, RL, RR.
+   *
+   * `compression` runs 0 (fully extended, wheel hanging) to 1 (fully
+   * compressed, bottomed out). Reading these while driving the articulation
+   * lane is the quickest way to tell whether travel and stiffness are right —
+   * a wheel pinned at 0 or 1 is one that has stopped doing any work.
+   */
+  get suspension(): Array<{ compression: number; contact: boolean; force: number }> {
+    const rest = CAR.suspension.restLength;
+    const travel = CAR.suspension.maxTravel;
+    const out = [];
+    for (let i = 0; i < 4; i++) {
+      const length = this.controller.wheelSuspensionLength(i) ?? rest;
+      out.push({
+        compression: clamp((rest - length) / travel + 0.5, 0, 1),
+        contact: this.controller.wheelIsInContact(i),
+        force: this.controller.wheelSuspensionForce(i) ?? 0,
+      });
+    }
+    return out;
+  }
+
   update(input: DriveInput, dt: number): void {
     this.applySteering(input, dt);
     this.applyDrive(input);

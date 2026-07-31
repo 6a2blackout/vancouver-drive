@@ -91,11 +91,13 @@ export function createHeadlights(): { group: THREE.Group; lights: THREE.SpotLigh
   const group = new THREE.Group();
   const lights: THREE.SpotLight[] = [];
 
-  // Positioned to match the round headlight units on the 911 model.
+  // Matched to the headlight units on the model. These are parented to the
+  // chassis, whose origin sits 0.653 m above the road, so the lamp height of
+  // 0.80 m above ground becomes 0.15 m here.
   for (const sx of [-1, 1]) {
     const light = new THREE.SpotLight(0xdce8ff, 1, 170, Math.PI / 6, 0.42, 1.1);
-    light.position.set(sx * 0.62, 0.79, 2.1);
-    light.target.position.set(sx * 0.45, -0.6, 36);
+    light.position.set(sx * 0.66, 0.15, 1.97);
+    light.target.position.set(sx * 0.45, -0.95, 36);
     group.add(light);
     group.add(light.target);
     lights.push(light);

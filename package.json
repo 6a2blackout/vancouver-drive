@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "fetch": "tsx tools/fetch.ts",
     "world": "tsx tools/build-world.ts",
+    "preview:car": "tsx tools/preview-car.ts",
     "test:vehicle": "tsx tools/test-vehicle.ts",
     "test:terrain": "tsx tools/test-terrain.ts",
     "test:roads": "tsx tools/test-roads.ts",

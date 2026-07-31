@@ -110,7 +110,12 @@ export const CAR = {
     body: 0x9aa3ab,
     roughness: 0.28,
     metalness: 0.85,
-    glass: 0x0a0d14,
+    /**
+     * Dark, but not black. At 0x0a0d14 the greenhouse rendered as a hole in the
+     * car rather than as glass — there was nothing left for a highlight to sit
+     * on.
+     */
+    glass: 0x1b2432,
     trim: 0x14161a,
   },
 } as const;

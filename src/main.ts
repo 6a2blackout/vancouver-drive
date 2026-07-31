@@ -9,6 +9,7 @@ import { CAR } from './vehicle/CarConfig';
 import { ChaseCamera } from './vehicle/ChaseCamera';
 import { createTestGround } from './world/TestGround';
 import { loadWorld } from './world/Terrain';
+import { createSandbox } from './world/Sandbox';
 import { Hud } from './ui/Hud';
 
 /** Physics runs on a fixed step so handling is identical on every display. */
@@ -60,6 +61,11 @@ async function main(): Promise<void> {
 
   const camera = new ChaseCamera(stage.camera);
 
+  // Suspension test facility, always built so `T` works instantly.
+  const sandbox = createSandbox(RAPIER, world, stage.scene);
+  const citySpawn = spawn.clone();
+  let inSandbox = false;
+
   let accumulator = 0;
   let last = performance.now();
   const _lightTarget = new THREE.Vector3();
@@ -77,6 +83,19 @@ async function main(): Promise<void> {
     }
     if (input.wasPressed('KeyC')) camera.cycleMode();
     if (input.wasPressed('KeyL')) lighting.cycle();
+
+    // T teleports between the city and the suspension pad, and switches to
+    // orbit on arrival — the pad exists to be watched, not just driven.
+    if (input.wasPressed('KeyT')) {
+      inSandbox = !inSandbox;
+      vehicle.setSpawn(inSandbox ? sandbox.spawn : citySpawn);
+      vehicle.reset();
+      if (inSandbox && camera.mode !== 'orbit') camera.setMode('orbit');
+      camera.snap();
+    }
+
+    const mouse = input.readMouse();
+    camera.applyMouse(mouse.dragX, mouse.dragY, mouse.wheel, mouse.dragging);
 
     const drive = input.read();
 
@@ -106,7 +125,19 @@ async function main(): Promise<void> {
     followMoon(stage.moon, _lightTarget);
 
     hud.extra['car'] = CAR.name;
-    hud.extra['cam'] = camera.mode;
+    hud.extra['cam'] = camera.mode === 'orbit'
+      ? `orbit ${camera.orbitDistance.toFixed(1)}m`
+      : camera.mode;
+    hud.extra['where'] = inSandbox ? 'test pad' : 'vancouver';
+
+    // Live suspension bars — the point of the test pad is seeing these move.
+    const s = vehicle.suspension;
+    const bar = (v: number, contact: boolean): string => {
+      const filled = Math.round(v * 8);
+      return (contact ? '' : '·') + '█'.repeat(filled) + '░'.repeat(8 - filled);
+    };
+    hud.extra['susp F'] = `${bar(s[0]!.compression, s[0]!.contact)} ${bar(s[1]!.compression, s[1]!.contact)}`;
+    hud.extra['susp R'] = `${bar(s[2]!.compression, s[2]!.contact)} ${bar(s[3]!.compression, s[3]!.contact)}`;
     hud.extra['light'] = lighting.mode;
     hud.extra['elev'] = `${p.y.toFixed(0)} m`;
     if (loaded) {

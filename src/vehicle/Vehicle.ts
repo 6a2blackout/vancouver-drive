@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { CAR } from './CarConfig';
 import { buildCarModel } from './CarModel';
+import { buildSuspensionCorner, type SuspensionCorner } from './SuspensionVisual';
+import { Drivetrain, resistiveForce, type DrivetrainState } from './Drivetrain';
 import type { DriveInput } from '../core/Input';
 
 /** Wheel indices. Front wheels steer; rear wheels take drive and the handbrake. */
@@ -34,6 +36,11 @@ export class Vehicle {
   private readonly controller: RAPIER.DynamicRayCastVehicleController;
   private readonly wheelMeshes: THREE.Object3D[] = [];
   private readonly brakeLights: THREE.MeshStandardMaterial;
+  private readonly corners: SuspensionCorner[] = [];
+  private readonly gearbox = new Drivetrain();
+  private drivetrain: DrivetrainState = {
+    rpm: CAR.engine.idleRpm, gear: 1, forcePerWheel: 0, shifting: false, revFraction: 0,
+  };
 
   /** Current smoothed steer angle in radians. */
   private steerAngle = 0;
@@ -118,6 +125,18 @@ export class Vehicle {
       this.group.add(wheel);
     }
 
+    // Visible coilovers, parented to the chassis so they ride with the body.
+    for (let i = 0; i < 4; i++) {
+      const [x, y, z] = wheelPositions[i]!;
+      const corner = buildSuspensionCorner(
+        { x, y, z },
+        Math.sign(x),
+        Math.abs(x),
+      );
+      this.corners.push(corner);
+      this.chassisMesh.add(corner.group);
+    }
+
     this.syncMeshes();
   }
 
@@ -161,8 +180,13 @@ export class Vehicle {
 
   update(input: DriveInput, dt: number): void {
     this.applySteering(input, dt);
-    this.applyDrive(input);
+    this.applyDrive(input, dt);
     this.controller.updateVehicle(dt);
+  }
+
+  /** Live engine and gearbox state, for the HUD. */
+  get engine(): DrivetrainState {
+    return this.drivetrain;
   }
 
   /** Must be called after `world.step()` to pick up the new transforms. */
@@ -187,9 +211,12 @@ export class Vehicle {
         .set(conn.x + dir.x * susp, conn.y + dir.y * susp, conn.z + dir.z * susp)
         .applyMatrix4(_mat);
 
-      _qSteer.setFromAxisAngle(UP, this.controller.wheelSteering(i) ?? 0);
+      const steer = this.controller.wheelSteering(i) ?? 0;
+      _qSteer.setFromAxisAngle(UP, steer);
       _qSpin.setFromAxisAngle(AXLE, this.controller.wheelRotation(i) ?? 0);
       mesh.quaternion.copy(_q).multiply(_qSteer).multiply(_qSpin);
+
+      this.corners[i]?.update(susp, steer);
     }
   }
 
@@ -231,12 +258,15 @@ export class Vehicle {
     for (const i of STEERED) this.controller.setWheelSteering(i, this.steerAngle);
   }
 
-  private applyDrive(input: DriveInput): void {
+  private applyDrive(input: DriveInput, dt: number): void {
     const d = CAR.drive;
     const speed = this.speed;
-    // Engine force tapers to zero at top speed to give a natural speed limit
-    // rather than an abrupt clamp.
-    const headroom = clamp(1 - Math.abs(speed) / d.maxSpeed, 0, 1);
+
+    // Reverse is selected by asking for backwards motion while nearly stopped.
+    const wantsReverse = input.throttle < 0 && speed < 0.5;
+    const throttle = wantsReverse ? -input.throttle : Math.max(0, input.throttle);
+
+    this.drivetrain = this.gearbox.update(speed, throttle, wantsReverse, dt);
 
     let engineForce = 0;
     let brake = 0;
@@ -244,12 +274,27 @@ export class Vehicle {
     if (input.throttle > 0) {
       // Pressing forward while rolling backwards should brake, not accelerate.
       if (speed < -0.5) brake = d.brakeForce;
-      else engineForce = d.engineForce * headroom * input.throttle;
+      else engineForce = this.drivetrain.forcePerWheel;
     } else if (input.throttle < 0) {
       if (speed > 0.5) brake = d.brakeForce;
-      else engineForce = -d.reverseForce * headroom;
+      else engineForce = -Math.min(this.drivetrain.forcePerWheel, d.reverseForce);
     } else {
       brake = d.engineBrake;
+    }
+
+    // Aerodynamic drag, applied to the body rather than through the wheels so
+    // it still acts with all four in the air.
+    //
+    // Rapier's addForce persists across timesteps until explicitly cleared, so
+    // this must be reset every frame. Without the reset the force accumulates
+    // without bound and the car oscillates violently back and forth.
+    this.body.resetForces(false);
+    const resist = resistiveForce(speed, CAR.mass, dt);
+    if (resist > 0.5) {
+      const dir = speed > 0 ? -1 : 1;
+      const r = this.body.rotation();
+      _v.set(0, 0, dir * resist).applyQuaternion(_q.set(r.x, r.y, r.z, r.w));
+      this.body.addForce({ x: _v.x, y: _v.y, z: _v.z }, true);
     }
 
     // Rear-wheel drive: only the rears get engine force, which is what gives

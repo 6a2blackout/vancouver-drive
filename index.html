@@ -29,6 +29,30 @@
       #speedo .unit { font-size: 13px; opacity: 0.6; letter-spacing: 3px; }
       #speedo .gear { font-size: 15px; opacity: 0.75; margin-top: 6px; letter-spacing: 2px; }
 
+      /* Tachometer — the rev bar reddens toward the limiter. */
+      #tacho { margin-top: 12px; width: 260px; margin-left: auto; }
+      #tacho .bar {
+        height: 7px;
+        background: rgba(120, 160, 220, 0.14);
+        border-radius: 4px;
+        overflow: hidden;
+      }
+      #tacho .fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #4fd2ff 0%, #7ee08a 55%, #ffc24a 78%, #ff3b48 100%);
+        transition: width 0.03s linear;
+      }
+      #tacho .row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        opacity: 0.65;
+        margin-top: 5px;
+        letter-spacing: 1px;
+      }
+      #tacho.shifting .fill { opacity: 0.35; }
+
       #stats {
         position: absolute;
         left: 16px;
@@ -71,6 +95,10 @@
         <div class="value">0</div>
         <div class="unit">KM / H</div>
         <div class="gear">— —</div>
+        <div id="tacho">
+          <div class="bar"><div class="fill"></div></div>
+          <div class="row"><span class="rpm">0 rpm</span><span class="ratio">N</span></div>
+        </div>
       </div>
       <div id="help">
         W / ↑   throttle<br />

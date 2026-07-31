@@ -143,7 +143,7 @@ async function main(): Promise<void> {
     if (loaded) {
       hud.extra['pos'] = `${p.x.toFixed(0)}, ${p.z.toFixed(0)}`;
     }
-    hud.update(vehicle.speed, vehicle.grounded, frameTime, stage.renderer);
+    hud.update(vehicle.speed, vehicle.grounded, frameTime, stage.renderer, vehicle.engine);
     stage.render();
     input.endFrame();
   }

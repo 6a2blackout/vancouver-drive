@@ -329,7 +329,10 @@ function testSandbox(): void {
 async function main(): Promise<void> {
   await RAPIER.init();
   console.log('Vehicle harness — Rapier raycast vehicle, no renderer');
-  console.log(`mass ${CAR.mass} kg · engine ${CAR.drive.engineForce} N/wheel · grip ${CAR.grip.frictionSlip}`);
+  console.log(
+    `${CAR.name} · ${CAR.mass} kg · ${CAR.engine.peakTorque} Nm · ` +
+    `${CAR.transmission.gears.length}-speed · ${CAR.drive.layout.toUpperCase()}`,
+  );
   testRestStance();
   testAcceleration();
   testBraking();

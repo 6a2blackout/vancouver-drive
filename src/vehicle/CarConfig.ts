@@ -72,12 +72,51 @@ export const CAR = {
     handbrakeFrictionSlip: 1.05,
   },
 
+  // ---- Engine ------------------------------------------------------------
+  /** Roughly a 992.2 GTS T-Hybrid flat-six: broad torque, 7,800 rpm limit. */
+  engine: {
+    idleRpm: 850,
+    redlineRpm: 7800,
+    /** Newton-metres at the plateau. */
+    peakTorque: 610,
+    shiftUpRpm: 7150,
+    shiftDownRpm: 2900,
+    /** Seconds of cut drive per shift. PDK is quick. */
+    shiftTime: 0.11,
+    /**
+     * How far above idle the engine will rev on throttle while the clutch is
+     * slipping. This is what lets the car pull away from a standstill instead
+     * of stalling against a stationary driveline.
+     */
+    clutchRise: 3400,
+  },
+
+  /** Eight-speed PDK ratios, near enough to the real set. */
+  transmission: {
+    gears: [4.71, 3.14, 2.13, 1.61, 1.28, 1.00, 0.84, 0.67],
+    final: 3.44,
+    efficiency: 0.92,
+    reverse: 3.50,
+  },
+
+  /** Drag is what actually caps top speed; gearing alone would not. */
+  aero: {
+    dragCoefficient: 0.30,
+    frontalArea: 2.02,
+    airDensity: 1.225,
+    /**
+     * Rolling resistance coefficient. Typical for road tyres on asphalt, and
+     * also what stops the car creeping under no power — see `resistiveForce`.
+     */
+    rollingResistance: 0.014,
+  },
+
   // ---- Drivetrain --------------------------------------------------------
   drive: {
     /** Rear-wheel drive, as a GTS should be. */
     layout: 'rwd' as 'rwd' | 'awd',
-    /** Peak force per driven wheel. Only the rears are driven. */
-    engineForce: 8600,
+    /** Wheels sharing the engine's output. */
+    drivenWheelCount: 2,
     reverseForce: 2200,
     brakeForce: 52,
     handbrakeForce: 62,

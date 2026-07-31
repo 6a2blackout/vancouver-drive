@@ -202,11 +202,14 @@ async function main(): Promise<void> {
   const tris = collectTriangles(model.group);
   console.log(`Car preview — ${tris.length} triangles total`);
 
+  // The car faces +Z and the camera looks down -Z, so zero rotation is the
+  // front view; half a turn shows the tail.
   const views: Array<[string, number, number]> = [
     ['side', Math.PI / 2, 0],
-    ['front', Math.PI, 0],
-    ['three-quarter', Math.PI * 0.72, 0.20],
-    ['rear-quarter', -Math.PI * 0.28, 0.20],
+    ['front', 0, 0.06],
+    ['rear', Math.PI, 0.06],
+    ['three-quarter', -Math.PI * 0.28, 0.20],
+    ['rear-quarter', Math.PI * 0.72, 0.20],
   ];
 
   for (const [name, rotY, rotX] of views) {

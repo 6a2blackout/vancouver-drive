@@ -118,25 +118,28 @@ function testBraking(): void {
   console.log(`  → ${dist > 5 && dist < 120 ? 'OK — stops in a believable distance' : 'PROBLEM — check brakeForce'}`);
 }
 
-/** Steady-state cornering: turning circle and rollover check. */
+/**
+ * Turning circle at walking pace, plus a rollover check at speed.
+ *
+ * Manufacturers quote turning circles at crawling speed on full lock, and so
+ * does this: at full throttle the car simply accelerates until speed-sensitive
+ * steering washes the angle out, which measures power rather than geometry.
+ * Throttle is therefore modulated to hold a constant crawl.
+ */
 function testCornering(): void {
+  const TARGET_MS = 4.2; // ~15 km/h
+
+  // --- Low-speed turning circle -------------------------------------------
   const { world, vehicle } = makeWorld();
   step(world, vehicle, COAST, 1.5);
 
-  const turn: DriveInput = { throttle: 0.55, steer: 1, handbrake: false };
-  let minUpY = 1;
   let maxX = -Infinity, minX = Infinity, maxZ = -Infinity, minZ = Infinity;
-  const q = new THREE.Quaternion();
-  const up = new THREE.Vector3();
-
-  for (let i = 0; i < 60 * 25; i++) {
-    vehicle.update(turn, DT);
+  for (let i = 0; i < 60 * 30; i++) {
+    const throttle = vehicle.speed < TARGET_MS ? 0.35 : 0;
+    vehicle.update({ throttle, steer: 1, handbrake: false }, DT);
     world.step();
-    const r = vehicle.body.rotation();
-    up.set(0, 1, 0).applyQuaternion(q.set(r.x, r.y, r.z, r.w));
-    minUpY = Math.min(minUpY, up.y);
-    // Sample the circle only after it has settled into steady state.
-    if (i > 60 * 12) {
+    // Sample only once it has settled into a steady circle.
+    if (i > 60 * 10) {
       const p = vehicle.position;
       maxX = Math.max(maxX, p.x); minX = Math.min(minX, p.x);
       maxZ = Math.max(maxZ, p.z); minZ = Math.min(minZ, p.z);
@@ -144,12 +147,32 @@ function testCornering(): void {
   }
   const diameter = Math.max(maxX - minX, maxZ - minZ);
 
+  // --- Rollover resistance at speed ---------------------------------------
+  const fast = makeWorld();
+  step(fast.world, fast.vehicle, COAST, 1.5);
+  const full: DriveInput = { throttle: 1, steer: 0, handbrake: false };
+  for (let i = 0; i < 60 * 30 && Math.abs(fast.vehicle.speed) * 3.6 < 90; i++) {
+    fast.vehicle.update(full, DT);
+    fast.world.step();
+  }
+  let minUpY = 1;
+  const q = new THREE.Quaternion();
+  const up = new THREE.Vector3();
+  for (let i = 0; i < 60 * 8; i++) {
+    fast.vehicle.update({ throttle: 0.4, steer: 1, handbrake: false }, DT);
+    fast.world.step();
+    const r = fast.vehicle.body.rotation();
+    up.set(0, 1, 0).applyQuaternion(q.set(r.x, r.y, r.z, r.w));
+    minUpY = Math.min(minUpY, up.y);
+  }
+
   console.log('\n── Cornering ───────────────────────────────');
-  console.log(`  turning circle  ${diameter.toFixed(1)} m diameter`);
-  console.log(`  min upright     ${minUpY.toFixed(3)}  (1.0 = perfectly level)`);
+  console.log(`  turning circle  ${diameter.toFixed(1)} m at ${(TARGET_MS * 3.6).toFixed(0)} km/h, full lock`);
+  console.log(`  min upright     ${minUpY.toFixed(3)} entering a corner at 90 km/h`);
   console.log(`  rolled over     ${minUpY < 0.2 ? 'YES' : 'no'}`);
-  const ok = minUpY > 0.55 && diameter > 8 && diameter < 200;
-  console.log(`  → ${ok ? 'OK — corners flat and turns in' : 'PROBLEM — rolls or will not turn'}`);
+  // A 911's real turning circle is about 11 m; allow arcade latitude.
+  const ok = minUpY > 0.55 && diameter > 8 && diameter < 20;
+  console.log(`  → ${ok ? 'OK — turns tightly and stays flat' : 'PROBLEM — circle too wide, or rolls'}`);
 }
 
 /**

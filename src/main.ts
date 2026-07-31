@@ -5,6 +5,7 @@ import { createStage, createHeadlights, followMoon } from './render/Renderer';
 import { Lighting } from './render/Lighting';
 import { Input } from './core/Input';
 import { Vehicle } from './vehicle/Vehicle';
+import { CAR } from './vehicle/CarConfig';
 import { ChaseCamera } from './vehicle/ChaseCamera';
 import { createTestGround } from './world/TestGround';
 import { loadWorld } from './world/Terrain';
@@ -104,6 +105,7 @@ async function main(): Promise<void> {
     _lightTarget.set(p.x, p.y, p.z);
     followMoon(stage.moon, _lightTarget);
 
+    hud.extra['car'] = CAR.name;
     hud.extra['cam'] = camera.mode;
     hud.extra['light'] = lighting.mode;
     hud.extra['elev'] = `${p.y.toFixed(0)} m`;

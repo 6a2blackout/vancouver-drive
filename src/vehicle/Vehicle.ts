@@ -1,12 +1,15 @@
 import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { CAR } from './CarConfig';
+import { buildCarModel } from './CarModel';
 import type { DriveInput } from '../core/Input';
 
-/** Wheel indices. Front wheels steer; rear wheels take the handbrake. */
+/** Wheel indices. Front wheels steer; rear wheels take drive and the handbrake. */
 const FL = 0, FR = 1, RL = 2, RR = 3;
 const STEERED = [FL, FR];
 const HANDBRAKED = [RL, RR];
+const REAR = [RL, RR];
+const ALL = [FL, FR, RL, RR];
 
 const UP = new THREE.Vector3(0, 1, 0);
 const AXLE = new THREE.Vector3(-1, 0, 0);
@@ -29,7 +32,8 @@ export class Vehicle {
 
   private readonly world: RAPIER.World;
   private readonly controller: RAPIER.DynamicRayCastVehicleController;
-  private readonly wheelMeshes: THREE.Mesh[] = [];
+  private readonly wheelMeshes: THREE.Object3D[] = [];
+  private readonly brakeLights: THREE.MeshStandardMaterial;
 
   /** Current smoothed steer angle in radians. */
   private steerAngle = 0;
@@ -69,20 +73,21 @@ export class Vehicle {
     this.controller.setIndexForwardAxis = 2; // +Z is forward
 
     const w = CAR.wheel;
-    const wheelPositions: Array<[number, number, number]> = [
-      [-w.halfTrack, w.connectionY, w.frontZ], // FL
-      [w.halfTrack, w.connectionY, w.frontZ],  // FR
-      [-w.halfTrack, w.connectionY, w.rearZ],  // RL
-      [w.halfTrack, w.connectionY, w.rearZ],   // RR
+    // Staggered: the rears are both wider apart and larger in diameter.
+    const wheelPositions: Array<[number, number, number, number]> = [
+      [-w.halfTrackFront, w.connectionY, w.frontZ, w.front.radius], // FL
+      [w.halfTrackFront, w.connectionY, w.frontZ, w.front.radius],  // FR
+      [-w.halfTrackRear, w.connectionY, w.rearZ, w.rear.radius],    // RL
+      [w.halfTrackRear, w.connectionY, w.rearZ, w.rear.radius],     // RR
     ];
 
-    for (const [x, y, z] of wheelPositions) {
+    for (const [x, y, z, radius] of wheelPositions) {
       this.controller.addWheel(
         { x, y, z },
         { x: 0, y: -1, z: 0 },  // suspension points down
         { x: -1, y: 0, z: 0 },  // axle along X
         CAR.suspension.restLength,
-        w.radius,
+        radius,
       );
     }
 
@@ -93,27 +98,24 @@ export class Vehicle {
       this.controller.setWheelSuspensionRelaxation(i, s.relaxation);
       this.controller.setWheelMaxSuspensionTravel(i, s.maxTravel);
       this.controller.setWheelMaxSuspensionForce(i, s.maxForce);
-      this.controller.setWheelFrictionSlip(i, CAR.grip.frictionSlip);
+      this.controller.setWheelFrictionSlip(
+        i, REAR.includes(i) ? CAR.grip.rearFrictionSlip : CAR.grip.frictionSlip,
+      );
       this.controller.setWheelSideFrictionStiffness(i, CAR.grip.sideFrictionStiffness);
     }
 
     // --- Visuals -----------------------------------------------------------
-    this.chassisMesh = buildChassisMesh();
+    const model = buildCarModel();
+    this.chassisMesh = model.group;
+    this.brakeLights = model.brakeLights;
     this.group.add(this.chassisMesh);
 
-    const wheelGeo = new THREE.CylinderGeometry(w.radius, w.radius, w.width, 20);
-    wheelGeo.rotateZ(Math.PI / 2); // align the cylinder axis with X (the axle)
-    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x14161c, roughness: 0.85, metalness: 0.1 });
-    const rimGeo = new THREE.CylinderGeometry(w.radius * 0.55, w.radius * 0.55, w.width + 0.02, 12);
-    rimGeo.rotateZ(Math.PI / 2);
-    const rimMat = new THREE.MeshStandardMaterial({ color: 0x8a93a6, roughness: 0.35, metalness: 0.8 });
-
-    for (let i = 0; i < 4; i++) {
-      const mesh = new THREE.Mesh(wheelGeo, wheelMat);
-      mesh.castShadow = true;
-      mesh.add(new THREE.Mesh(rimGeo, rimMat));
-      this.wheelMeshes.push(mesh);
-      this.group.add(mesh);
+    // Wheels are driven by the physics controller, so they are detached from
+    // the body group and positioned in world space each frame.
+    for (const wheel of model.wheels) {
+      this.chassisMesh.remove(wheel);
+      this.wheelMeshes.push(wheel);
+      this.group.add(wheel);
     }
 
     this.syncMeshes();
@@ -227,10 +229,21 @@ export class Vehicle {
       brake = d.engineBrake;
     }
 
-    for (let i = 0; i < 4; i++) {
-      this.controller.setWheelEngineForce(i, engineForce);
+    // Rear-wheel drive: only the rears get engine force, which is what gives
+    // the car its throttle-on rotation. Brakes act on all four.
+    const driven = d.layout === 'rwd' ? REAR : ALL;
+    for (const i of ALL) {
+      this.controller.setWheelEngineForce(i, 0);
       this.controller.setWheelBrake(i, brake);
     }
+    for (const i of driven) {
+      // With two driven wheels instead of four, each carries the full share.
+      this.controller.setWheelEngineForce(i, engineForce);
+    }
+
+    // Brake lights respond to braking and to lifting off at speed.
+    const braking = input.throttle < 0 || (input.handbrake && Math.abs(speed) > 1);
+    this.brakeLights.emissiveIntensity = braking ? 9 : 2.4;
 
     // The handbrake locks the rear wheels and drops their grip in both axes,
     // which is what lets the back end step out into a slide. Cutting only the
@@ -242,7 +255,7 @@ export class Vehicle {
         i, input.handbrake ? g.handbrakeSideFriction : g.sideFrictionStiffness,
       );
       this.controller.setWheelFrictionSlip(
-        i, input.handbrake ? g.handbrakeFrictionSlip : g.frictionSlip,
+        i, input.handbrake ? g.handbrakeFrictionSlip : g.rearFrictionSlip,
       );
       if (input.handbrake) {
         this.controller.setWheelBrake(i, d.handbrakeForce);
@@ -250,46 +263,4 @@ export class Vehicle {
       }
     }
   }
-}
-
-/** A blocky but readable car silhouette, styled for the night/neon look. */
-function buildChassisMesh(): THREE.Group {
-  const g = new THREE.Group();
-  const { x: hx, y: hy, z: hz } = CAR.halfExtents;
-
-  const paint = new THREE.MeshStandardMaterial({ color: 0x1b2535, roughness: 0.32, metalness: 0.65 });
-  const glass = new THREE.MeshStandardMaterial({
-    color: 0x05080f, roughness: 0.08, metalness: 0.9,
-  });
-
-  const lower = new THREE.Mesh(new THREE.BoxGeometry(hx * 2, hy * 1.5, hz * 2), paint);
-  lower.position.y = -hy * 0.2;
-  lower.castShadow = true;
-  g.add(lower);
-
-  const cabin = new THREE.Mesh(new THREE.BoxGeometry(hx * 1.72, hy * 1.15, hz * 1.02), glass);
-  cabin.position.set(0, hy * 0.92, -hz * 0.12);
-  cabin.castShadow = true;
-  g.add(cabin);
-
-  // Headlights and tail lights are emissive so bloom picks them up later.
-  const headMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff, emissive: 0xbfd8ff, emissiveIntensity: 4,
-  });
-  const tailMat = new THREE.MeshStandardMaterial({
-    color: 0xff2233, emissive: 0xff1a2b, emissiveIntensity: 3,
-  });
-  const lampGeo = new THREE.BoxGeometry(0.34, 0.16, 0.08);
-
-  for (const sx of [-1, 1]) {
-    const head = new THREE.Mesh(lampGeo, headMat);
-    head.position.set(sx * hx * 0.62, 0, hz + 0.02);
-    g.add(head);
-
-    const tail = new THREE.Mesh(lampGeo, tailMat);
-    tail.position.set(sx * hx * 0.62, 0.05, -hz - 0.02);
-    g.add(tail);
-  }
-
-  return g;
 }

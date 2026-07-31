@@ -91,10 +91,11 @@ export function createHeadlights(): { group: THREE.Group; lights: THREE.SpotLigh
   const group = new THREE.Group();
   const lights: THREE.SpotLight[] = [];
 
+  // Positioned to match the round headlight units on the 911 model.
   for (const sx of [-1, 1]) {
-    const light = new THREE.SpotLight(0xdce8ff, 1, 160, Math.PI / 6, 0.42, 1.1);
-    light.position.set(sx * 0.56, 0.05, 2.2);
-    light.target.position.set(sx * 0.4, -1.4, 34);
+    const light = new THREE.SpotLight(0xdce8ff, 1, 170, Math.PI / 6, 0.42, 1.1);
+    light.position.set(sx * 0.62, 0.79, 2.1);
+    light.target.position.set(sx * 0.45, -0.6, 36);
     group.add(light);
     group.add(light.target);
     lights.push(light);

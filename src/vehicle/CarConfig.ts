@@ -1,116 +1,117 @@
 /**
- * Every tunable that affects how the car feels, in one place.
+ * Porsche 911 GTS (992.2) — dimensions, mass and handling.
  *
- * Phase 0 of this project is explicitly "make the car feel good on an empty
- * plane" — so these values are meant to be edited constantly. Keep them here
- * rather than scattered through Vehicle.ts.
+ * Real numbers where they exist: 4,542 mm long, 1,900 mm wide (GTS wide-body),
+ * 1,297 mm tall, 2,450 mm wheelbase, ~1,570 kg, staggered 20" front / 21" rear
+ * wheels. Handling is tuned toward that car's character — rear weight bias,
+ * rear-wheel drive, eager turn-in — but arcade-legible rather than simulation
+ * accurate.
+ *
+ * Phase 0 of this project was "make the car feel good", and these values are
+ * meant to be edited constantly. `npm run test:vehicle` measures the result.
  *
  * Units are SI: metres, kilograms, newtons, radians, seconds.
  */
 export const CAR = {
+  name: 'Porsche 911 GTS',
+
   // ---- Chassis -----------------------------------------------------------
-  /** Half-extents of the chassis collider box (x = half width, y = half height, z = half length). */
-  halfExtents: { x: 0.9, y: 0.45, z: 2.2 },
-  mass: 1250,
+  /** Half-extents of the collider box (x = half width, y = half height, z = half length). */
+  halfExtents: { x: 0.95, y: 0.42, z: 2.27 },
+  mass: 1570,
   /**
-   * Centre of mass offset from the chassis centre. Pulling this *down* is the
-   * single most effective anti-rollover measure for a raycast vehicle — without
-   * it the car tips over in hard corners.
+   * Centre of mass. Low, and *behind* the centreline: a 911 carries its engine
+   * out past the rear axle and runs roughly 39/61 front/rear. That rear bias is
+   * the whole personality of the car — it turns in hard and rotates on lift.
    */
-  centerOfMass: { x: 0, y: -0.28, z: 0 },
-  /**
-   * Principal angular inertia. Roughly box-derived, but yaw (y) is deliberately
-   * lowered below the physical value to make the car rotate into corners more
-   * eagerly than a real one would.
-   */
-  angularInertia: { x: 1500, y: 1150, z: 620 },
-  linearDamping: 0.06,
-  angularDamping: 0.55,
+  centerOfMass: { x: 0, y: -0.30, z: -0.27 },
+  /** Yaw (y) is set below the physical value so the car rotates eagerly. */
+  angularInertia: { x: 1750, y: 1280, z: 640 },
+  linearDamping: 0.05,
+  angularDamping: 0.5,
 
   // ---- Wheels ------------------------------------------------------------
+  /**
+   * Staggered, as on the real car: 245/35 R20 front, 315/30 R21 rear. The wider
+   * rear is not just cosmetic here — it is why the car puts down rear-drive
+   * power without spinning up.
+   */
   wheel: {
-    radius: 0.36,
-    width: 0.25,
-    /** Lateral distance from centreline to each wheel. */
-    halfTrack: 0.82,
-    frontZ: 1.45,
-    rearZ: -1.35,
-    /** Height of the suspension attachment point relative to chassis centre. */
-    connectionY: -0.1,
+    front: { radius: 0.35, width: 0.245 },
+    rear: { radius: 0.365, width: 0.315 },
+    halfTrackFront: 0.80,
+    halfTrackRear: 0.785,
+    frontZ: 1.225,
+    rearZ: -1.225,
+    connectionY: -0.06,
   },
 
   // ---- Suspension --------------------------------------------------------
   suspension: {
-    restLength: 0.35,
-    stiffness: 32,
-    /** Damping while compressing (hitting a bump). */
-    compression: 0.85,
-    /** Damping while extending (rebound). Slightly higher kills bounciness. */
-    relaxation: 0.88,
-    maxTravel: 0.28,
-    maxForce: 60_000,
+    restLength: 0.30,
+    /** Stiff, like a sports car. Too stiff and it skitters over Vancouver's crowns. */
+    stiffness: 38,
+    compression: 0.88,
+    relaxation: 0.92,
+    maxTravel: 0.22,
+    maxForce: 70_000,
   },
 
   // ---- Grip --------------------------------------------------------------
   grip: {
-    /** Longitudinal grip. Higher = harder acceleration without spin. */
-    frictionSlip: 2.2,
-    /** Lateral grip. Lower = slides more readily. This is the drift knob. */
-    sideFrictionStiffness: 0.9,
+    frictionSlip: 2.5,
     /**
-     * Rear-axle grip while the handbrake is down. A locked, sliding tyre loses
-     * grip in *both* directions — cutting only the lateral value leaves the rear
-     * wheels still gripping longitudinally, and the car simply stops in a
-     * straight line instead of rotating.
+     * The rears run 315-section tyres against 245 at the front, and they are
+     * the driven axle. Giving them more grip is both physically honest and what
+     * lets a rear-drive car put its power down instead of lighting them up.
      */
+    rearFrictionSlip: 3.1,
+    sideFrictionStiffness: 0.95,
+    /** Rear grip while the handbrake is down, in both axes. */
     handbrakeSideFriction: 0.3,
     handbrakeFrictionSlip: 1.05,
   },
 
   // ---- Drivetrain --------------------------------------------------------
   drive: {
-    /** Peak force per driven wheel. All four wheels are driven (AWD). */
-    engineForce: 2400,
-    /** Reverse is deliberately weaker than forward. */
-    reverseForce: 1100,
-    brakeForce: 42,
-    /**
-     * Enough to lock the rears, but deliberately well below `brakeForce`-scale
-     * values: a very high number scrubs so much speed that the slide dies before
-     * the player can steer through it.
-     */
+    /** Rear-wheel drive, as a GTS should be. */
+    layout: 'rwd' as 'rwd' | 'awd',
+    /** Peak force per driven wheel. Only the rears are driven. */
+    engineForce: 8600,
+    reverseForce: 2200,
+    brakeForce: 52,
     handbrakeForce: 62,
-    /** Light braking applied when coasting, so the car slows off-throttle. */
-    engineBrake: 3.5,
-    /** Speed (m/s) at which engine force has fallen to zero — the top speed. */
-    maxSpeed: 62,
+    engineBrake: 3.8,
+    /** Speed (m/s) at which engine force reaches zero. ~290 km/h. */
+    maxSpeed: 80,
   },
 
   // ---- Steering ----------------------------------------------------------
   steering: {
-    /** Maximum steer angle at a standstill. */
-    maxAngle: 0.55,
-    /** Maximum steer angle at or above `speedForMinAngle`. */
-    minAngle: 0.16,
-    /** Speed (m/s) at which steering authority bottoms out. */
-    speedForMinAngle: 45,
-    /** How fast the wheels turn toward the target angle (radians/second). */
-    rate: 3.6,
-    /** How fast they return to centre when no input is held. */
-    returnRate: 5.5,
+    maxAngle: 0.56,
+    minAngle: 0.14,
+    speedForMinAngle: 48,
+    rate: 4.0,
+    returnRate: 6.0,
   },
 
   // ---- Camera ------------------------------------------------------------
   camera: {
-    /** Chase camera offset in the car's local space (behind and above). */
-    offset: { x: 0, y: 2.5, z: -7.2 },
-    /** Look-at point offset, slightly ahead of the car. */
-    lookAhead: 6.0,
-    /** Position smoothing per second. Higher = stiffer, more locked-on. */
-    stiffness: 5.0,
+    offset: { x: 0, y: 2.25, z: -7.0 },
+    lookAhead: 6.5,
+    stiffness: 5.2,
     baseFov: 68,
-    /** Extra FOV at top speed, for a sense of acceleration. */
-    speedFov: 18,
+    speedFov: 20,
+  },
+
+  // ---- Appearance --------------------------------------------------------
+  paint: {
+    /** GT Silver Metallic — reads well against a dark city. */
+    body: 0x9aa3ab,
+    roughness: 0.28,
+    metalness: 0.85,
+    glass: 0x0a0d14,
+    trim: 0x14161a,
   },
 } as const;
 

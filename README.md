@@ -58,6 +58,27 @@ Building windows are computed in the shader from real metres — 3.6 m floors,
 3.1 m window pitch — using wall-space UVs and a per-building seed. No textures,
 so the whole city is one draw call and storeys line up on every building.
 
+## The car
+
+A Porsche 911 GTS (992.2), at real dimensions: 4,542 mm long, 2,450 mm
+wheelbase, ~1,570 kg, staggered 20" front / 21" rear wheels, rear-engined and
+rear-wheel drive with a 39/61 weight bias.
+
+The body is lofted from cross-sections rather than assembled from boxes, because
+the 911's identity is entirely in continuous curves — the nose dropping below the
+front arches, the roof flowing unbroken into the engine deck, rear hips wider
+than the front track. Those are changes of section along the length, so it is
+drawn the way the real car is.
+
+`npm run test:vehicle` measures how it behaves:
+
+```
+0-100 km/h      3.45 s        (real GTS: 3.0)
+turning circle  9.5 m         (real: ~11)
+braking         43.7 m from 100 km/h
+handbrake       2.7° → 38.9° slip, catchable
+```
+
 ### Pipeline
 
 ```

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vancouver Night Drive</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: #05070d; }
+      canvas { display: block; }
+
+      #ui {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: #cfe3ff;
+      }
+
+      #speedo {
+        position: absolute;
+        right: 32px;
+        bottom: 28px;
+        text-align: right;
+        text-shadow: 0 0 12px rgba(120, 190, 255, 0.55);
+      }
+      #speedo .value { font-size: 62px; font-weight: 600; line-height: 1; letter-spacing: -2px; }
+      #speedo .unit { font-size: 13px; opacity: 0.6; letter-spacing: 3px; }
+      #speedo .gear { font-size: 15px; opacity: 0.75; margin-top: 6px; letter-spacing: 2px; }
+
+      #stats {
+        position: absolute;
+        left: 16px;
+        top: 14px;
+        font-size: 11px;
+        line-height: 1.6;
+        opacity: 0.5;
+        white-space: pre;
+      }
+
+      #help {
+        position: absolute;
+        left: 16px;
+        bottom: 16px;
+        font-size: 11px;
+        line-height: 1.7;
+        opacity: 0.4;
+      }
+
+      #loading {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: #05070d;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: #6f8dbb;
+        font-size: 13px;
+        letter-spacing: 3px;
+        transition: opacity 0.6s ease;
+      }
+      #loading.hidden { opacity: 0; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <div id="loading">LOADING VANCOUVER…</div>
+    <div id="ui">
+      <div id="stats"></div>
+      <div id="speedo">
+        <div class="value">0</div>
+        <div class="unit">KM / H</div>
+        <div class="gear">— —</div>
+      </div>
+      <div id="help">
+        W / ↑   throttle<br />
+        S / ↓   brake &amp; reverse<br />
+        A D / ← →   steer<br />
+        SPACE   handbrake<br />
+        C   camera&nbsp;&nbsp;&nbsp;L   lighting&nbsp;&nbsp;&nbsp;R   reset
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

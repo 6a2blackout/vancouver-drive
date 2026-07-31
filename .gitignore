@@ -1,0 +1,12 @@
+node_modules/
+dist/
+
+# Cached GeoJSON pulled from the City of Vancouver open data API.
+# Regenerate with `npm run fetch`.
+data/raw/
+
+# Generated world artifacts. Regenerate with `npm run world`.
+public/world/
+
+.DS_Store
+*.log
